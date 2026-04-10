@@ -125,3 +125,143 @@ Citations: \
 [4] KiCad EDA Documentation. PCB Layout and Schematic Capture. https://docs.kicad.org \
 [5] https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/index.html
 
+# 2026-04-10 - PCB Construction & Software Development
+
+## Project Overview
+- **Breadboard Demo 2:** Bring-up and demonstration of the Week 3 PCB with a simplified control unit and sensor set, including debugging of USB enumeration, programming consistency, and FSR signal integrity issues.
+- **Week 4 PCB Bring-Up:** Receipt and full population of the Week 4 revised PCB using SMD components, integrating new connectors and status LEDs to improve testability, and initiating firmware validation of the external IMU.
+
+## Design Progress
+Since we did not have any SMD components like capacitors and resistors, we were forced to use breadboard components for the second demo. This resulted in a good number of technical issues in our design process for our demo. 
+To start we desoldered a chip from an ESP32 dev board. We then soldered that back onto the PCB. This was then followed by the buttons and usb data lines. We ran into three main issues, usb enumeration, programming consistency, fsr programming. 
+
+### 2.2 Enable Pin Pull-Up — Design Flaw & Fix
+ 
+On the Week 3 PCB, the ESP32-S3 EN (Enable) pin was left floating as there was no pull-up resistor was placed to the 3.3 V rail. This caused the EN pin to oscillate, preventing reliable USB enumeration and stable operation.
+The schematic for the Week 3 PCB did not include a pull-up on EN. The ESP32-S3 datasheet and Espressif hardware design guidelines [1] specify that EN must be pulled high through a 10 kΩ resistor for reliable reset behavior.
+In order to fix this for the demo a 10 kΩ resistor was soldered between the EN pin and the 3.3 V rail on the PCB surface. This stabilized the enable line and allowed consistent boot behavior.
+ 
+**Design Change in Week 4 PCB:** A dedicated 10 kΩ pull-up resistor (R_EN) was added to the schematic and layout, connecting EN to 3.3 V. A 100 nF decoupling capacitor to GND was also added per Espressif guidelines.
+
+
+ ### 2.3 Boot Pin Solder Joint
+ Programming was inconsistent and the ESP32-S3 would sometimes fail to enter download mode when the BOOT button was pressed.
+ Close visual inspection revealed a solder joint on the GPIO0 (BOOT) line connecting the tactile button to the PCB pad. A multimeter continuity test confirmed an intermittent open.
+ The joint was resoldered and fixed. Post-fix continuity test confirmed a solid connection. Programming via USB CDC was confirmed reliable across 10 consecutive flash attempts.
+ 
+### 2.4 FSR Signal Path : Unsoldered Pin
+ 
+FSR ADC readings were non-responsive on the PCB, despite the breadboard circuit functioning on the hardware device readings as we could clearly see the voltage rise when pressure was applied.
+When probing with a multimeter at the MCU pin it showed no voltage variation when the FSR was pressed. Tracing the net back revealed that the FSR signal pad on the PCB was completely unsoldered.
+Once we soldered the PIN 6 which is the FSR pin on the ESP32 we immediately saw the software work 
+
+### 2.5 AMS1117 3.3V Capacitor Useage
+
+For the latest configuration I have decided to go with a 10 µF tantalum on output, 10 µF ceramic on input. The AMS1117 requires a minimum output ESR to maintain stability so a tandalum capacitor was necessary for this latest design. The output capacitor has about 1 Ω of ESR so we can fall into the necessary requirement for stability. The ESR has to be between 0.3 and 22. 
+
+## 3. Test Setup & Experimental Methodology
+ 
+### 3.1 Breadboard Demo 2 Configuration
+ 
+The demo hardware consisted of the following:
+ 
+- Week 3 PCB with desoldered and resoldered ESP32-S3 module, direct USB D+/D- lines routed to PCB header.
+- External breadboard: FSR and push button connected to MCU GPIO pins.
+- USB-A cable connecting PCB to host PC running Windows 11.
+ 
+### 3.2 Test Procedure : USB Enumeration
+ 
+1. Connected PCB to host PC via USB-A.
+2. Opened Device Manager to observe device appearance on the USB bus.
+3. Observed device appearing as "COM Port" or "HID Mouse."
+7. Re-plugged USB; device enumerated successfully as ESP32-S3 CDC device, then as HID Mouse following firmware load.
+ 
+### 3.3 Software Test Routine
+ 
+A dedicated software test case was written to cycle through the following HID actions automatically upon boot:
+ 
+- **Left button click**  HID report: `buttons = 0x01`
+- **Right button click**  HID report: `buttons = 0x02`
+- **Circle drawing routine**  360-step sinusoidal X/Y movement at 1° increments
+ 
+This test verified USB HID report delivery and host-side cursor control simultaneously, without requiring manual hardware interaction during the demo.
+ 
+---
+ 
+## 4. Debugging Log
+ 
+| Issue # | Description | Status |
+|---|---|---|
+| 1 | EN pin floating, USB not enumerating | ✅ Resolved |
+| 2 | BOOT pin incorrect solder joint, inconsistent download mode | ✅ Resolved |
+| 3 | FSR ADC unresponsive, unsoldered signal pad | ✅ Resolved |
+ 
+### 4.1 EN Pin Oscillation
+ 
+| Field | Detail |
+|---|---|
+| Symptom | Device not appearing consistently on USB bus; Device Manager showed repeated disconnect/reconnect events |
+| Test Equipment | multimeter on EN pin to GND |
+| Measurement | EN toggling between 0 V and ~0.8 V at irregular intervals; no stable HIGH |
+| Hypothesis | Floating EN pin driven by internal leakage/noise,no pull-up to maintain HIGH state |
+| Fix | 10 kΩ resistor soldered from EN to 3.3 V rail |
+| Verification | EN stable at 3.3 V. USB enumeration successful on 5 consecutive plug/unplug cycles |
+ 
+### 4.2 Boot Pin Inconsistency
+ 
+| Field | Detail |
+|---|---|
+| Symptom | flash failed with "Failed to connect to ESP32-S3: No serial data received" majority of attempts |
+| Test | Continuity check on BOOT button PCB pad,open confirmed |
+| Fix | Resoldered |
+| Verification | 10 consecutive flash operations completed without failure |
+ 
+### 4.3 FSR ADC Unresponsive
+ 
+| Field | Detail |
+|---|---|
+| Symptom | Serial monitor showed ADC channel reading 0 regardless of FSR compression |
+| Test 1 | Swapped PCB connection for breadboard, ADC readings correct so the fault isolated to PCB |
+| Test 2 | Probed ESP32-S3 ADC pin with multimeter while compressing FSR reading 0 V (expected 1–3 V) |
+| Test 3 | Probed FSR signal pad on PCB,correct voltage present. Continuity from pad to MCU pin: OPEN |
+| Fix | Pin soldered to pad |
+| Verification | ADC readings verified across full compression range |
+ 
+---
+ 
+## 5. Week 4 PCB — Population & Bring-Up
+ 
+### 5.1 Changes from Week 3 to Week 4
+ 
+- All bypass capacitors (100 nF, 10 µF) placed as SMD 0805 components directly adjacent to power pins, eliminates long traces from breadboard wiring.
+- EN pull-up resistor (10 kΩ, R_EN) added to schematic and placed on PCB.
+- Status LEDs added: green (3.3 V power good) and red (5V power good), each with 330 Ω and 150 Ω current-limiting resistors.
+- Tandalum Capacitors for the LDO 3.3V output
+- Board area reduced by approximately 40% versus Week 3 design.
+
+  
+---
+ <img width="481" height="640" alt="image" src="https://github.com/user-attachments/assets/798f3d66-1f3e-4fd9-92b0-fedad0f2376d" />
+
+### 5.2 IMU Integration Status
+  
+Firmware for SPI initialization and register readout is written and under test. Configuration follows the  datasheet register map [2]:
+  
+### Remaining Work Before Final PCB
+ 
+- Complete IMU SPI driver verification: reliable accelerometer and gyroscope reads
+- Validate MAX3421E USB host bring-up (SPI init sequence, USB connect interrupt). Requires oven reflow using solder paste and PCB stencil — **stencils on order.**
+- Finalize  optical sensor SPI integration: delta X/Y accumulation and configuration via SPI write.
+ 
+---
+ 
+## References
+ 
+[1] https://www.analog.com/media/en/technical-documentation/data-sheets/MAX3421E.pdf \
+[2] KiCad EDA Documentation. PCB Layout and Schematic Capture. https://docs.kicad.org \
+[3] https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitm-1/index.html \
+[4] https://www.alldatasheet.com/datasheet-pdf/pdf/205691/ADMOS/AMS1117-3.3.html
+
+
+
+
