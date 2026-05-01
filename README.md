@@ -263,5 +263,31 @@ Firmware for SPI initialization and register readout is written and under test. 
 [4] https://www.alldatasheet.com/datasheet-pdf/pdf/205691/ADMOS/AMS1117-3.3.html
 
 
+# 2026-04-30 - Final PCB testing, Case Design, Product Completion
+Summary
+1. **PCB bring-up complete.** All  power rails verified, all five sensors enumerating and producing valid data.
+2. **IMU brought up after extensive debug.** Required X-ray inspection of solder joints, fabrication of a breakout board, chip-ID readback over SPI, and decoupling-cap value review against the datasheet.
+3. **3.3 V regulator anomaly identified and resolved.** Probing during bring-up revealed the rail sitting at ~3.8 V instead of 3.3 V, corrected before any 3.3-V-only parts were powered for extended periods.
+4. **Optical sensor rework.** The original MX8733B's leg broke off and a replacement sensor was sourced and integrated 
+5. **Mechanical housing finalized.** A second-revision 3D-printed case was modeled in CAD, printed, and fit-checked against the assembled PCB.
+6. **Firmware feature-complete.** TinyUSB HID enumeration, IMU + encoder driver updates with pull-up handling, and a sensor-fusion path between the optical sensor and IMU.
+
+## IMU Bringup
+We spent a long while testing the imu through using our existing codebase with no luck and after several soldering attempts, we decided to go with a breakout board to limit the amount of possible issues. After getting imu breakout boards we tested them on a breadboard and used a fully new codebase on the arduino IDE to ensure we had a program that we could confirm works with the chip. This isolated the issue now to our board specifically. The next step was the hardware since the software was confirmed working. This forced us to try to solder and resolder the imu until we got readings. This took numerous attempts and resulted in finally getting the data to work. For our data to work we did an SPI read over the CHIP_ID register 0x0, which returned a D7, the chip id for our IMU. For a lot of the time we were getting 0xFF or 0x00 on the SPI lines which shows that the MISO lines and bus was left floating or pulled to gnd. All the gpio pins were tested with basic output high and low tests to verify they could work for SPI to ensure no pins were damaged as well. 
+
+This is the pseudocode for it:
+```
+imu_init():
+    spi_bus_initialize(HSPI, mosi=23, miso=19, sclk=18)
+    spi_bus_add_device(cs=5, mode=0, clk=1MHz)
+    cs_low()
+    write_byte(0x80 | 0x00)        // read flag | WHO_AM_I addr
+    rx = read_byte()
+    cs_high()
+    assert rx == 0xD7
+```
+
+For firmware for the imu after we got it working, we needed to change the code to be something that was more user-friendly. We moved to using an implementation where the imu gets initialized in the position that the user is holding the pen, and then tilting in any direction moves and accelerates the mouse in that direction. This needed to be iterated on to create something very robust.
+
 
 
