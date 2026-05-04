@@ -269,8 +269,15 @@ Summary
 2. **IMU brought up after extensive debug.** Required X-ray inspection of solder joints, fabrication of a breakout board, chip-ID readback over SPI, and decoupling-cap value review against the datasheet.
 3. **3.3 V regulator anomaly identified and resolved.** Probing during bring-up revealed the rail sitting at ~3.8 V instead of 3.3 V, corrected before any 3.3-V-only parts were powered for extended periods.
 4. **Optical sensor rework.** The original MX8733B's leg broke off and a replacement sensor was sourced and integrated 
-5. **Mechanical housing finalized.** A second-revision 3D-printed case was modeled in CAD, printed, and fit-checked against the assembled PCB.
+5. **Mechanical housing finalized.** A revised 3D-printed case was modeled in CAD, printed, and fit-checked against the assembled PCB.
 6. **Firmware feature-complete.** TinyUSB HID enumeration, IMU + encoder driver updates with pull-up handling, and a sensor-fusion path between the optical sensor and IMU.
+
+
+## Data Verification
+We were able to read data from each sensor on the board through printing out the values in the terminal and seeing variables come out when we interacted. 
+[usb_hid_task] imu(3,-1) enc= max(0,0,s=-, b00) fsr=4012(---) btn=00(L0 R0 M0) out(3,-1,s=-)
+[sensor] conn: imu= ok max3421= ok
+
 
 ## IMU Bringup
 We spent a long while testing the imu through using our existing codebase with no luck and after several soldering attempts, we decided to go with a breakout board to limit the amount of possible issues. After getting imu breakout boards we tested them on a breadboard and used a fully new codebase on the arduino IDE to ensure we had a program that we could confirm works with the chip. This isolated the issue now to our board specifically. The next step was the hardware since the software was confirmed working. This forced us to try to solder and resolder the imu until we got readings. This took numerous attempts and resulted in finally getting the data to work. For our data to work we did an SPI read over the CHIP_ID register 0x0, which returned a D7, the chip id for our IMU. For a lot of the time we were getting 0xFF or 0x00 on the SPI lines which shows that the MISO lines and bus was left floating or pulled to gnd. All the gpio pins were tested with basic output high and low tests to verify they could work for SPI to ensure no pins were damaged as well. 
@@ -288,6 +295,27 @@ imu_init():
 ```
 
 For firmware for the imu after we got it working, we needed to change the code to be something that was more user-friendly. We moved to using an implementation where the imu gets initialized in the position that the user is holding the pen, and then tilting in any direction moves and accelerates the mouse in that direction. This needed to be iterated on to create something very robust.
+
+# 2026-05-04 - Final Testing & Results
+
+This week, we finished the presentation as well as the demo, and the project was completed. We spent several different work sessions together, finalizing everything as well as getting the formal criteria of everything tested. First off, as far as our requirements and verification go, we tested all the different requirements and verified all of them for our final product. The only one that was not within tolerance was the weight of the device, which was around 45g and our requirement was 30g. This was probably the most difficult requirement to hit, given the 3d case print was our first try, and we could have had a much more optimized case given more iterations. We did have to print 2 slightly different cases because of the dimensioning being off for one. The final product allowed us to easily house all the items as well as access them well. For our final pen tip design, we went with a box that allowed the optical sensor to neatly fit inside. We also decided to have a hole on the side for an LED. This allowed for a smooth sensor reading with minimal data loss. The pen tip also uses a foam pad to hit our FSR. This made the click very nice and easy to use without being overly clicky or not very smooth. 
+
+Here is the final CAD design with all the parts:
+<img width="277" height="197" alt="image" src="https://github.com/user-attachments/assets/bcbae996-9012-49d7-bdcf-1daaee18bc5a" />
+
+
+Case with PCB in it:
+<img width="266" height="205" alt="image" src="https://github.com/user-attachments/assets/dfa64bbc-44d0-4036-ade5-fbfbd374e209" />
+
+Final block diagram:
+<img width="704" height="389" alt="image" src="https://github.com/user-attachments/assets/e3e3e178-7e37-4b8e-abc6-801ccb7df2d6" />
+
+After getting all functionality done, we were left with a good number of points to improve upon. The first improvement other than the case would be the imu code. The IMU worked well but it was not super user-friendly for control. The DPI and sensitivity could have been changed, or we could have added functionality to have the DPI be variable. On top of that, we could have added better macro functionality for the buttons. The optical sensor could have also been created ourselves to increase the smoothness of the cursor movement. As a group our last meeting was after the final presentation to go over the final video and report and we discussed what was necessary for that. 
+
+
+
+
+
 
 
 
